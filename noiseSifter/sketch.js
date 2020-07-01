@@ -1,41 +1,11 @@
-p5.disableFriendlyError = true;
+// Noise Sifter
+// Ross Cameron 2020/07/01
 
-class Profiler {
-  constructor() {
-    this.report = {}
-  }
-
-  startTimer(processId) {
-    let time = performance.now();
-
-    if (processId in this.report) {
-      this.report[processId].t0 = time;
-    }
-    else {
-      this.report[processId] = {
-        totalTime: 0,
-        meanTime: 0,
-        count: 1,
-        t0: time,
-      };
-    }
-  }
-
-  stopTimer(processId) {
-    let t1 = performance.now()
-    let delta = t1 - this.report[processId].t0;
-
-    this.report[processId].count++;
-    this.report[processId].totalTime += delta;
-    this.report[processId].meanTime = this.report[processId].totalTime / this.report[processId].count;
-  }
-
-  printReport() {
-    console.log(this.report);
-  }
-}
-
-let profiling = new Profiler;
+// Sketch that loads an image into memory, then generates a canvas of noise of the same dimensions
+// For each pixel of noise, if it comes within a threshold of similarity to the corrseponding pixel of the image file, it is "locked in" and will no longer change
+// Eventually, the original image should emerge from the noise
+// How noisy the final image is will depend on the threshold
+// A smaller threshold will produce a more accurate image but will take much longer to do so
 
 function getRandomInt(max) {
   return Math.floor(Math.random() * max);
@@ -58,48 +28,34 @@ class NoisePixel {
 
   compareDist(other, delta = 10) {
     // Proper Euclidean distance
-    // 0.001437ms
-    // let d = dist(
-    //   this.pixel[0],
-    //   this.pixel[1],
-    //   this.pixel[2],
-    //   other[0],
-    //   other[1],
-    //   other[2]
-    // );
+    // takes ~0.0015ms
+    // let d = dist(this.pixel[0], this.pixel[1], this.pixel[2],
+    //   other[0], other[1], other[2]);
 
-    // Rough comparison
+    // Rough comparison 
+    // d^2 = (r2-r1)^2 + (g2-g1)^2 + (b2-b1)^2
+    delta *= delta;
     let d = (
       (this.pixel[0] - other[0]) * (this.pixel[0] - other[0]) +
       (this.pixel[1] - other[1]) * (this.pixel[1] - other[1]) +
       (this.pixel[2] - other[2]) * (this.pixel[2] - other[2])
     );
-    delta *= delta;
 
     return (d < delta);
   }
 
   update(other) {
-    profiling.startTimer("pixUpdate");
-
     // Generate a new random value for this pixel
-    profiling.startTimer("newCol");
     this.newCol();
-    profiling.stopTimer("newCol");
 
     // Compare the new value to our reference
-    profiling.startTimer("compare");
     let matches = this.compareDist(other);
-    profiling.stopTimer("compare");
 
     if (matches) {
-      // This pixel matches, stop generating new
-      // values for it
+      // This pixel matches, stop generating new values
       this.locked = true;
       lockedPixels++;
     }
-
-    profiling.stopTimer("pixUpdate");
   }
 
   render() {
@@ -116,6 +72,7 @@ function setup() {
   createCanvas(img.width, img.height);
   pixelDensity(1);
 
+  // Total amount of pixels in the image
   pixelArrayLength = width * height;
 
   // Create an array of noisePixels
@@ -128,57 +85,38 @@ function setup() {
 }
 
 function generateNoise() {
+  // Scan through canvas, row by column
   for (let y = 0; y < height; y++) {
-    profiling.startTimer("oneRow");
     for (let x = 0; x < width; x++) {
-      profiling.startTimer("onePixel");
-
+      // Assumes pixel density of 1
       let index = (x + y * width);
 
-      profiling.startTimer("assignPix");
       let noisePixel = noiseGen[index];
-      profiling.stopTimer("assignPix");
 
       if (!noisePixel.locked) {
-        profiling.startTimer("getRef");
+        // Get the colour values of our corresponding image pixel
         let off = index * 4;
         let referencePixel = [
           img.pixels[off],
           img.pixels[off + 1],
           img.pixels[off + 2],
-          img.pixels[off + 3]
+          // img.pixels[off + 3]
+          // Assume all pixels have full alpha for now
+          255
         ]
-        profiling.stopTimer("getRef");
 
+        // Generate a new noisy pixel and compare it to the image
         noisePixel.update(referencePixel);
 
-        profiling.startTimer('setPix');
+        // Display the noisy pixel
         set(x, y, noisePixel.pixel)
-        profiling.stopTimer('setPix');
       }
-
-      profiling.stopTimer("onePixel");
     }
-    profiling.stopTimer("oneRow");
   }
 }
 
 function draw() {
-  profiling.startTimer('draw')
-  // Update our noise pixels
-  // for (let y = 0; y < height; y++) {
-  //   for (let x = 0; x < width; x++) {
-  //     let index = (x + y * width);
-  //     // Get the pixel value from the image
-  //     let referencePixel = img.get(x, y);
-  //     let noisePixel = noiseGen[index];
-  //     noisePixel.update(referencePixel);
-  //     set(x, y, noisePixel.pixel)
-  //   }
-  // }
-  profiling.startTimer('noiseGenAllPix');
   generateNoise();
-  profiling.stopTimer('noiseGenAllPix');
 
   // Check if all pixels are locked
   if ((lockedPixels) == pixelArrayLength) {
@@ -186,6 +124,4 @@ function draw() {
   }
 
   updatePixels();
-  // noLoop();
-  profiling.stopTimer("draw");
 }
