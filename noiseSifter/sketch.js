@@ -12,6 +12,7 @@ function getRandomInt(max) {
 }
 
 let img;
+let threshold = 10;
 let noiseGen = [];
 let pixelArrayLength = 0;
 let lockedPixels = 0;
@@ -49,7 +50,7 @@ class NoisePixel {
     this.newCol();
 
     // Compare the new value to our reference
-    let matches = this.compareDist(other);
+    let matches = this.compareDist(other, threshold);
 
     if (matches) {
       // This pixel matches, stop generating new values
